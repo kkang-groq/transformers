@@ -132,8 +132,8 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids):
     # The first two dimensions of cos and sin are always 1, so we can `squeeze` them.
     cos = cos.squeeze(1).squeeze(0)  # [seq_len, dim]
     sin = sin.squeeze(1).squeeze(0)  # [seq_len, dim]
-    cos = cos[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
-    sin = sin[position_ids].unsqueeze(1)  # [bs, 1, seq_len, dim]
+    cos = cos[position_ids].unsqueeze(2)  # [bs, 1, seq_len, dim]
+    sin = sin[position_ids].unsqueeze(2)  # [bs, 1, seq_len, dim]
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
     return q_embed, k_embed
@@ -192,8 +192,8 @@ class LlamaAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
-        query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim)
+        key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim)
         value_states = self.v_proj(hidden_states)
 
         kv_seq_len = value_states.shape[-1]
@@ -203,19 +203,19 @@ class LlamaAttention(nn.Module):
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
         # [bsz, nh, t, hd]
 
-        cached_key_states = key_states
-        cached_value_states = value_states
+        query_states = query_states.transpose(1, 2)
         if past_key_value is not None:
             # reuse k, v, self_attention
             reshaped_key_states = key_states.view(bsz, q_len, self.num_heads * self.head_dim)
-            past_key_value[0][position_ids] = reshaped_key_states
-            past_key_value[1][position_ids] = value_states
+            past_key_value[0][:, position_ids[0][0]] = reshaped_key_states
+            past_key_value[1][:, position_ids[0][0]] = value_states
             cached_key_states = key_states
             cached_value_states = value_states
             key_states = past_key_value[0].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
             value_states = past_key_value[1].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
         else:
-            value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+            cached_value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+            cached_key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
         past_key_value = (cached_key_states, cached_value_states) if use_cache else None
 
