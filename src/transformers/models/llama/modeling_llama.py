@@ -194,21 +194,30 @@ class LlamaAttention(nn.Module):
 
         query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        value_states = self.v_proj(hidden_states)
 
-        kv_seq_len = key_states.shape[-2]
+        kv_seq_len = value_states.shape[-1]
         if past_key_value is not None:
-            kv_seq_len += past_key_value[0].shape[-2]
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+            kv_seq_len = past_key_value[0].shape[-1]
+        cos, sin = self.rotary_emb(key_states, seq_len=kv_seq_len)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
         # [bsz, nh, t, hd]
 
+        cached_key_states = key_states
+        cached_value_states = value_states
         if past_key_value is not None:
             # reuse k, v, self_attention
-            key_states = torch.cat([past_key_value[0], key_states], dim=2)
-            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+            reshaped_key_states = key_states.view(bsz, q_len, self.num_heads * self.head_dim)
+            past_key_value[0][position_ids] = reshaped_key_states
+            past_key_value[1][position_ids] = value_states
+            cached_key_states = key_states
+            cached_value_states = value_states
+            key_states = past_key_value[0].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+            value_states = past_key_value[1].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        else:
+            value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        past_key_value = (key_states, value_states) if use_cache else None
+        past_key_value = (cached_key_states, cached_value_states) if use_cache else None
 
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
 
