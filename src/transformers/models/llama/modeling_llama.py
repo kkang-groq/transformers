@@ -209,8 +209,8 @@ class LlamaAttention(nn.Module):
             reshaped_key_states = key_states.view(bsz, q_len, self.num_heads * self.head_dim)
             past_key_value[0][:, position_ids[0][0]] = reshaped_key_states
             past_key_value[1][:, position_ids[0][0]] = value_states
-            cached_key_states = key_states
-            cached_value_states = value_states
+            cached_key_states = past_key_value[0]
+            cached_value_states = past_key_value[1]
             key_states = past_key_value[0].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
             value_states = past_key_value[1].view(bsz, kv_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
         else:
