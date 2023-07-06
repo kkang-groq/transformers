@@ -131,8 +131,8 @@ def get_rotary_pos_emb(cos, sin, position_ids):
     # The first two dimensions of cos and sin are always 1, so we can `squeeze` them.
     cos = cos.squeeze(1).squeeze(0)  # [seq_len, dim]
     sin = sin.squeeze(1).squeeze(0)  # [seq_len, dim]
-    cos = cos[position_ids].unsqueeze(0).unsqueeze(0).unsquuze(0)  # [bs, 1, seq_len, dim]
-    sin = sin[position_ids].unsqueeze(0).unsqueeze(0).unsquuze(0)  # [bs, 1, seq_len, dim]
+    cos = cos[position_ids].unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [bs, 1, seq_len, dim]
+    sin = sin[position_ids].unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [bs, 1, seq_len, dim]
 
     return cos, sin
 
